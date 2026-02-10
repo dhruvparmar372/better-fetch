@@ -197,7 +197,7 @@ async function launchBrowser(): Promise<BrowserContext> {
   const ctx = await chromium.launchPersistentContext(userDataDir, {
     executablePath,
     headless: false,
-    ignoreDefaultArgs: ["--enable-automation"],
+    ignoreDefaultArgs: ["--enable-automation", "--no-sandbox"],
     args: [
       "--no-first-run",
       "--no-default-browser-check",
@@ -208,6 +208,10 @@ async function launchBrowser(): Promise<BrowserContext> {
     ],
     viewport: { width: 1920, height: 1080 },
     locale: "en-US",
+  });
+
+  await ctx.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
   });
 
   ctx.on("close", () => {

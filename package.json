@@ -19,8 +19,6 @@
     "defuddle": "^0.6.6",
     "jsdom": "24",
     "playwright-core": "^1.58.2",
-    "playwright-extra": "^4.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "rebrowser-playwright-core": "^1.52.0",
     "zod": "^4.3.6"
   }
