@@ -70,16 +70,9 @@ Debug data is written to the `debug/` directory.
 │                     │ blocked or known anti-bot domain   │
 │                     ▼                                    │
 │  ┌─────────────────────────────────────────────────┐    │
-│  │ Tier 2: Real Chrome Browser                     │    │
-│  │                                                 │    │
-│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐     │    │
-│  │  │   Tab 1   │ │   Tab 2   │ │   Tab 3   │     │    │
-│  │  │  (fetch)  │ │  (fetch)  │ │  (fetch)  │     │    │
-│  │  └───────────┘ └───────────┘ └───────────┘     │    │
-│  │         Semaphore: max 10 concurrent tabs       │    │
-│  │                                                 │    │
-│  │  Challenge detection:                           │    │
-│  │  If anti-bot challenge → wait for resolution    │    │
+│  │ Tier 2: Browser Daemon Client                   │    │
+│  │ POST /fetch → Unix socket                       │    │
+│  │ Spawns daemon if not running, polls /health     │    │
 │  └──────────────────┬──────────────────────────────┘    │
 │                     │                                    │
 │                     ▼                                    │
@@ -92,6 +85,41 @@ Debug data is written to the `debug/` directory.
 │                     │                                    │
 │                     ▼                                    │
 │           Return clean Markdown to AI tool               │
+└─────────────────────────────────────────────────────────┘
+                       │
+           Unix socket │ (~/.local/state/better-fetch/browser.sock)
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  Browser Daemon (shared, singleton process)             │
+│                                                         │
+│  Detached process that outlives any single MCP server.  │
+│  Shared across all MCP server instances (e.g. multiple  │
+│  Claude Code windows).                                  │
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ HTTP server on Unix socket                      │    │
+│  │  POST /fetch   — fetch a URL in a new tab       │    │
+│  │  GET  /health  — status, active/queued tabs     │    │
+│  └──────────────────┬──────────────────────────────┘    │
+│                     │                                    │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ Chrome Instance (lazy-launched on first fetch)  │    │
+│  │                                                 │    │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐     │    │
+│  │  │   Tab 1   │ │   Tab 2   │ │   Tab 3   │     │    │
+│  │  │  (fetch)  │ │  (fetch)  │ │  (fetch)  │     │    │
+│  │  └───────────┘ └───────────┘ └───────────┘     │    │
+│  │         Semaphore: max 10 concurrent tabs       │    │
+│  │                                                 │    │
+│  │  Challenge detection:                           │    │
+│  │  If anti-bot challenge → wait for resolution    │    │
+│  └─────────────────────────────────────────────────┘    │
+│                                                         │
+│  Lifecycle:                                             │
+│  • Spawned on first browser-tier fetch                  │
+│  • Auto-exits after 5 min idle (no in-flight requests)  │
+│  • Graceful shutdown: drains requests, closes Chrome    │
+│  • Stale socket/Chrome cleanup on next spawn            │
 └─────────────────────────────────────────────────────────┘
                        │
                        ▼
@@ -107,6 +135,10 @@ Debug data is written to the `debug/` directory.
 ```
 
 ### Key Decisions
+
+**Why a shared daemon?**
+
+Multiple MCP server instances (e.g. several Claude Code windows) would each launch their own Chrome — wasting memory and fighting over the profile lock. The daemon extracts Chrome management into a single, shared process. Socket binding acts as an atomic lock: only one daemon can own the socket, so parallel spawn attempts resolve cleanly without races.
 
 **Why a real, headful Chrome browser?**
 
@@ -130,7 +162,16 @@ better-fetch persists two things across restarts:
 
 **Concurrency**
 
-Multiple URLs can be fetched in parallel — each gets its own browser tab within the same Chrome instance. A semaphore caps concurrency at 10 simultaneous tabs to avoid overwhelming the browser or triggering rate limits.
+Multiple URLs can be fetched in parallel — each gets its own browser tab within the same Chrome instance. A semaphore caps concurrency at 10 simultaneous tabs to avoid overwhelming the browser or triggering rate limits. The daemon exposes active and queued tab counts via its `/health` endpoint.
+
+**Crash recovery and race conditions**
+
+The daemon handles real-world failure scenarios:
+
+- **Parallel spawns (thundering herd):** Socket binding is atomic — one daemon wins, others detect the running instance and exit.
+- **Stale sockets:** If the daemon crashes without cleanup, the next client detects the dead socket, removes it, and spawns a fresh daemon.
+- **Orphaned Chrome:** On startup, the daemon checks for stale Chrome processes via `SingletonLock` symlinks, verifies the PID is actually Chrome (guarding against PID recycling), and kills orphans before launching.
+- **Shutdown overlap:** The old daemon removes its socket immediately on shutdown, allowing a new daemon to bind while the old one drains in-flight requests.
 
 ### Limitations
 
