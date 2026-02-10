@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { fetchUrl, FetchBlockedError } from "./fetcher.ts";
-import { fetchWithBrowser } from "./browser.ts";
-import { requiresBrowser, markDomainAsBrowserOnly } from "./config.ts";
+import { fetchUrl, FetchBlockedError } from "@/fetcher.ts";
+import { fetchWithBrowser } from "@/browser.ts";
+import { requiresBrowser, markDomainAsBrowserOnly } from "@/config.ts";
 
 export function createServer(): McpServer {
   const server = new McpServer({

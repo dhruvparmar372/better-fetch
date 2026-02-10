@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { BrowserDomainList } from "../../src/config.ts";
+import { BrowserDomainList } from "@/config.ts";
 
 let tempDir: string;
 let filePath: string;

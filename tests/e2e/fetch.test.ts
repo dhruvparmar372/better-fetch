@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createServer } from "../../src/server.ts";
+import { createServer } from "@/server.ts";
 
 describe("web_fetch tool", () => {
   test("fetches https://example.com and returns content containing 'Example Domain'", async () => {

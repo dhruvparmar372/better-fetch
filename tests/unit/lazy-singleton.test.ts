@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { LazySingleton } from "../../src/lazy-singleton.ts";
+import { LazySingleton } from "@/lazy-singleton.ts";
 
 describe("LazySingleton", () => {
   test("concurrent .get() calls only invoke factory once", async () => {

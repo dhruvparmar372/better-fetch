@@ -14,6 +14,13 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
 
+    // Absolute imports
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@tests/*": ["./tests/*"]
+    },
+
     // Best practices
     "strict": true,
     "skipLibCheck": true,

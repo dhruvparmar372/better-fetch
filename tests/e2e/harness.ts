@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { setDebugBaseDir, resetDebugBaseDir } from "../../src/debug.ts";
-import { fetchWithBrowser, closeBrowser } from "../../src/browser.ts";
+import { setDebugBaseDir, resetDebugBaseDir } from "@/debug.ts";
+import { fetchWithBrowser, closeBrowser } from "@/browser.ts";
 
 // Same signatures as browser.ts
 const CHALLENGE_SIGNATURES = [

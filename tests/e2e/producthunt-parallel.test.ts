@@ -1,5 +1,5 @@
 import { describe, test, expect, afterAll } from "bun:test";
-import { createTestRun } from "./harness.ts";
+import { createTestRun } from "@tests/e2e/harness.ts";
 
 let run: ReturnType<typeof createTestRun>;
 

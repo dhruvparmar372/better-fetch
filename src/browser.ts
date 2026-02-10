@@ -2,9 +2,9 @@ import { chromium, type BrowserContext } from "playwright-core";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { DEBUG, DebugSession, getChromeDebugArgs, setupPageDebug, dumpCookies } from "./debug.ts";
-import { Semaphore } from "./semaphore.ts";
-import { LazySingleton } from "./lazy-singleton.ts";
+import { DEBUG, DebugSession, getChromeDebugArgs, setupPageDebug, dumpCookies } from "@/debug.ts";
+import { Semaphore } from "@/semaphore.ts";
+import { LazySingleton } from "@/lazy-singleton.ts";
 import type { Page, CDPSession } from "playwright-core";
 
 const MAX_CONCURRENT_TABS = 10;
