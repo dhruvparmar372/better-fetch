@@ -8,13 +8,126 @@ Built for tools like Claude Code, ChatGPT, and any MCP-compatible client — bet
 
 AI tools are bad at reading the web. Pages block bots, return garbage HTML, or hide the actual content behind layers of scripts and ads. better-fetch solves this by acting as a local MCP server that fetches, renders, and extracts meaningful content from any URL.
 
-## Key Features
+## How to Use
 
-**Anti-Bot Bypass** — Uses a real browser environment to get past bot detection, CAPTCHAs, and JavaScript-rendered pages that simple HTTP requests can't handle.
+### Claude Code
 
-**Meaningful Content Extraction** — Strips away navigation, ads, sidebars, and boilerplate to return just the content that matters. Not a raw HTML dump — actual readable content.
+**Step 1:** Add better-fetch as an MCP server in your Claude Code configuration (`~/.claude/claude_desktop_config.json`):
 
-**Fully Local** — Runs entirely on your machine. No data leaves your system, no third-party APIs, no cloud dependencies. Your browsing stays yours.
+```json
+{
+  "mcpServers": {
+    "better-fetch": {
+      "command": "bun",
+      "args": ["run", "/path/to/better-fetch/src/index.ts"]
+    }
+  }
+}
+```
+
+Replace `/path/to/better-fetch` with the actual path where you cloned the repo.
+
+**Step 2:** Claude Code has its own built-in `WebFetch` tool, so it won't automatically prefer better-fetch's `web_fetch` tool. To make Claude use better-fetch for web fetching, add the following to your project's `CLAUDE.md` (or `~/.claude/CLAUDE.md` for global config):
+
+```markdown
+When fetching web pages, always use the `web_fetch` MCP tool from better-fetch instead of the built-in WebFetch tool. The better-fetch tool handles anti-bot protection and JavaScript-rendered pages that the built-in tool cannot.
+```
+
+Once configured, you can ask Claude to fetch any URL:
+
+```
+Fetch the content from https://www.producthunt.com/products/notion
+```
+
+### Debug Mode
+
+Debug output is disabled by default. To enable detailed debug logging (network traces, cookies, page HTML, Chrome logs), set:
+
+```bash
+BETTER_FETCH_DEBUG=1
+```
+
+Debug data is written to the `debug/` directory.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  AI Tool (Claude Code, etc.)                            │
+│  "Fetch https://www.producthunt.com/products/notion"    │
+└──────────────────────┬──────────────────────────────────┘
+                       │ MCP protocol (stdio)
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  better-fetch MCP Server                                │
+│                                                         │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ Tier 1: Plain HTTP fetch()                      │    │
+│  │ Fast path for simple sites (example.com, etc.)  │    │
+│  │ Uses browser-like headers to look legitimate.   │    │
+│  │ If blocked (403/429/503) → falls through.       │    │
+│  └──────────────────┬──────────────────────────────┘    │
+│                     │ blocked or known anti-bot domain   │
+│                     ▼                                    │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ Tier 2: Real Chrome Browser                     │    │
+│  │                                                 │    │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐     │    │
+│  │  │   Tab 1   │ │   Tab 2   │ │   Tab 3   │     │    │
+│  │  │  (fetch)  │ │  (fetch)  │ │  (fetch)  │     │    │
+│  │  └───────────┘ └───────────┘ └───────────┘     │    │
+│  │         Semaphore: max 10 concurrent tabs       │    │
+│  │                                                 │    │
+│  │  Challenge detection:                           │    │
+│  │  If anti-bot challenge → wait for resolution    │    │
+│  └──────────────────┬──────────────────────────────┘    │
+│                     │                                    │
+│                     ▼                                    │
+│           Return page HTML to AI tool                    │
+└─────────────────────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│  Chrome (your existing installation)                    │
+│                                                         │
+│  Launched via Playwright with a FRESH user data dir     │
+│  at ~/.local/state/better-fetch/chrome-profile/         │
+│                                                         │
+│  Your personal Chrome profiles and sessions are         │
+│  NEVER touched or accessed.                             │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Key Decisions
+
+**Why a real, headful Chrome browser?**
+
+Most anti-bot systems work by fingerprinting the browser environment — checking for headless indicators, automation flags, WebGL rendering, canvas hashes, and dozens of other signals. A real Chrome instance running in headful mode passes all of these checks natively because it *is* a real browser. No amount of header spoofing or headless patching can replicate this reliably.
+
+**Privacy: fresh profile, no access to your data**
+
+better-fetch launches Chrome using your existing Chrome installation but with a completely **separate user data directory** (`~/.local/state/better-fetch/chrome-profile/`). This means:
+
+- It does NOT use any of your authenticated Chrome sessions
+- It does NOT have access to your bookmarks, passwords, cookies, or browsing history
+- It behaves like a brand-new Chrome installation with a clean slate
+
+**How persistence works**
+
+better-fetch persists two things across restarts:
+
+1. **Cookies (Chrome profile):** When Chrome solves an anti-bot challenge, the resulting cookies are stored in the profile's cookie database at `~/.local/state/better-fetch/chrome-profile/`. Because we use a persistent context (not incognito), these cookies survive across browser restarts — so a challenge only needs to be solved once, and subsequent visits to the same site pass through automatically.
+
+2. **Anti-bot domain list:** better-fetch learns which domains require a browser. On the first fetch to any domain, it tries a plain HTTP request. If that gets blocked (403/429/503) and the browser fallback succeeds, the domain is automatically added to `~/.local/state/better-fetch/browser-domains.txt`. On subsequent fetches to that domain, the server skips the plain HTTP attempt and goes straight to the browser — saving time and avoiding unnecessary blocked requests.
+
+**Concurrency**
+
+Multiple URLs can be fetched in parallel — each gets its own browser tab within the same Chrome instance. A semaphore caps concurrency at 10 simultaneous tabs to avoid overwhelming the browser or triggering rate limits.
+
+### Limitations
+
+- **IP-based rate limiting:** Some sites use IP-based blocking in addition to browser fingerprinting, sometimes requiring CAPTCHA solving that cannot be automated. Proxy/IP rotation is not yet supported.
+- **Headful only:** Chrome runs with a visible window. This is by design for anti-bot bypass but means it requires a display (or virtual display on Linux).
 
 ## Status
 
