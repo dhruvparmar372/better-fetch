@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { Semaphore } from "../src/semaphore.ts";
+import { Semaphore } from "../../src/semaphore.ts";
 
 describe("Semaphore", () => {
   test("allows up to max concurrent acquires", async () => {
