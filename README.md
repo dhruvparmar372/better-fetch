@@ -83,7 +83,15 @@ Debug data is written to the `debug/` directory.
 │  └──────────────────┬──────────────────────────────┘    │
 │                     │                                    │
 │                     ▼                                    │
-│           Return page HTML to AI tool                    │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │ Content Extraction (defuddle)                   │    │
+│  │ Strips clutter (nav, ads, sidebars, footers).   │    │
+│  │ Converts cleaned HTML → Markdown.               │    │
+│  │ Extracts metadata (title, description, domain). │    │
+│  └──────────────────┬──────────────────────────────┘    │
+│                     │                                    │
+│                     ▼                                    │
+│           Return clean Markdown to AI tool               │
 └─────────────────────────────────────────────────────────┘
                        │
                        ▼
